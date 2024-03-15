@@ -12,12 +12,51 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // my code
+const session = require('express-session')
+const passport = require('passport')
+const { ObjectID } = require('mongodb')
 
 app.set('view engine', 'pug')
 app.set('views', './views/pug')
-app.route('/').get((req, res) => {
-  res.render('index')
-});
+
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: true,
+  saveUninitialized: true,
+  cookie: { secure: false }
+}))
+
+app.use(passport.initialize())
+app.use(passport.session())
+
+// https://forum.freecodecamp.org/t/advanced-node-and-express/567135 - look over this. 
+
+// wrapping routes and serialization prevents users from making requests before the database is connected.
+// param is a callback which takes a client which is created within the function (see connection.js)
+myDB(async client => {
+  const myDataBase = await client.db('database').collection('users')
+
+  app.route('/').get((req, res) => {
+    res.render('index', {
+      title: 'Connected to Database',
+      message: 'Please login'
+    })
+  })
+
+  passport.serializeUser((user, done) => {
+    done(null, user._id)
+  })
+
+  passport.deserializeUser((id, done) => {
+    myDataBase.findOne({ _id: new ObjectID(id) }, (err, doc) => {
+      done(null, doc)
+    })
+  })
+}).catch((e) => {
+  app.route('/').get((req, res) => {
+    res.render('index', { title: e, message: 'Unable to connect to database' })
+  })
+})
 
 //
 
