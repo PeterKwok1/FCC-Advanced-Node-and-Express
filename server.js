@@ -15,6 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 const session = require('express-session')
 const passport = require('passport')
 const { ObjectID } = require('mongodb')
+const LocalStrategy = require('passport-local')
 
 app.set('view engine', 'pug')
 app.set('views', './views/pug')
@@ -29,8 +30,6 @@ app.use(session({
 app.use(passport.initialize())
 app.use(passport.session())
 
-// https://forum.freecodecamp.org/t/advanced-node-and-express/567135 - look over this. 
-
 // wrapping routes and serialization prevents users from making requests before the database is connected.
 // param is a callback which takes a client which is created within the function (see connection.js)
 myDB(async client => {
@@ -38,10 +37,32 @@ myDB(async client => {
 
   app.route('/').get((req, res) => {
     res.render('index', {
+      showLogin: true,
       title: 'Connected to Database',
       message: 'Please login'
     })
   })
+
+  app.route('/login').post(
+    passport.authenticate('local', { failureRedirect: '/' }),
+    (req, res) => {
+      res.redirect('/profile')
+    }
+  )
+
+  app.route('/profile').get((req, res) => {
+    res.render('profile')
+  })
+
+  passport.use(new LocalStrategy((username, password, done) => {
+    myDataBase.findOne({ username: username }, (err, user) => {
+      console.log(`User ${username} attempted to log in.`)
+      if (err) { return done(err) }
+      if (!user) { return done(null, false) }
+      if (password !== user.password) { return done(null, false) }
+      return done(null, user)
+    })
+  }))
 
   passport.serializeUser((user, done) => {
     done(null, user._id)
