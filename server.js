@@ -30,6 +30,13 @@ app.use(session({
 app.use(passport.initialize())
 app.use(passport.session())
 
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) { // checks if req.user is defined 
+    return next()
+  }
+  res.redirect('/')
+}
+
 // wrapping routes and serialization prevents users from making requests before the database is connected.
 // param is a callback which takes a client which is created within the function (see connection.js)
 myDB(async client => {
@@ -50,8 +57,26 @@ myDB(async client => {
     }
   )
 
-  app.route('/profile').get((req, res) => {
-    res.render('profile')
+  app.route('/profile').get(
+    ensureAuthenticated,
+    (req, res) => {
+      res.render('profile', {
+        username: req.user.username
+      })
+    }
+  )
+
+  app.route('/logout').get(
+    (req, res) => {
+      req.logout()
+      res.redirect('/')
+    }
+  )
+
+  app.use((req, res, next) => {
+    res.status(404)
+      .type('text')
+      .send('Not Found')
   })
 
   passport.use(new LocalStrategy((username, password, done) => {
