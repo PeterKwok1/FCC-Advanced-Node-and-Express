@@ -1,6 +1,8 @@
 const passport = require('passport')
 const { ObjectID } = require('mongodb')
 const LocalStrategy = require('passport-local')
+const GithubStrategy = require('passport-github')
+require('dotenv').config()
 const bcrypt = require('bcrypt')
 
 module.exports = function (app, myDataBase) {
@@ -13,7 +15,7 @@ module.exports = function (app, myDataBase) {
         })
     })
 
-    passport.use(new LocalStrategy((username, password, done) => {
+    passport.use(new LocalStrategy((username, password, done) => { // thinking of it as a day pass + stuff
         myDataBase.findOne({ username: username }, (err, user) => {
             console.log(`User ${username} attempted to log in.`)
             if (err) { return done(err) }
@@ -24,11 +26,16 @@ module.exports = function (app, myDataBase) {
             return done(null, user)
         })
     }))
+
+    passport.use(new GithubStrategy(
+        {
+            clientID: process.env.GITHUB_CLIENT_ID,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET,
+            callbackURL: 'http://localhost:3000/auth/github/callback'
+        },
+        (accessToken, refreshToken, profile, cb) => {
+            console.log(profile)
+        }
+    ))
 }
 
-function ensureAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) { // checks if req.user is defined 
-        return next()
-    }
-    res.redirect('/')
-}
