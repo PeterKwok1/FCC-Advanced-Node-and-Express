@@ -54,7 +54,8 @@ module.exports = function (app, myDataBase) {
     app.route('/auth/github/callback').get(
         passport.authenticate('github', { failureRedirect: '/' }),
         (req, res) => {
-            res.redirect('/profile')
+            req.session.user_id = req.user.id
+            res.redirect('/chat')
         }
     )
 
@@ -73,6 +74,15 @@ module.exports = function (app, myDataBase) {
             res.redirect('/')
         }
     )
+
+    app.route('/chat', (req, res) => {
+        ensureAuthenticated,
+            (req, res) => {
+                res.render({
+                    user: req.user
+                })
+            }
+    })
 
     app.use((req, res, next) => {
         res.status(404)
