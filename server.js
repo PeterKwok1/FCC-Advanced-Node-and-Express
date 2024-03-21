@@ -21,6 +21,11 @@ const routes = require('./routes.js')
 const auth = require('./auth.js')
 const http = require('http').createServer(app)
 const io = require('socket.io')(http)
+const passportSocketIo = require('passport.socketio')
+const cookieParser = require('cookie-parser')
+const MongoStore = require('connect-mongo')(session)
+const URI = process.env.MONGO_URI
+const store = new MongoStore({ url: URI })
 
 app.set('view engine', 'pug')
 app.set('views', './views/pug')
@@ -29,11 +34,24 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: true,
   saveUninitialized: true,
-  cookie: { secure: false }
+  cookie: { secure: false },
+  key: 'express.sid',
+  store: store,
 }))
 
 app.use(passport.initialize())
 app.use(passport.session())
+
+io.use(
+  passportSocketIo.authorize({
+    cookieParser: cookieParser,
+    key: 'express.sid',
+    secret: process.env.SESSION_SECRET,
+    store: store,
+    success: onAuthorizeSuccess,
+    fail: onAuthorizeFail
+  })
+)
 
 // wrapping routes and serialization prevents users from making requests before the database is connected.
 // param is a callback which takes a client which is created within the function (see connection.js)
@@ -43,14 +61,36 @@ myDB(async client => {
   routes(app, myDataBase)
   auth(app, myDataBase)
 
+  // my guess is that when a client connects to your server, you emit an event. client.js has a listener for the same event.
+  let currentUsers = 0
   io.on('connection', socket => { // sockets are clients
     console.log('A user has connected')
+    currentUsers++
+    io.emit('user count', currentUsers) // emit an event named param1, with data param2
+
+    socket.on('disconnect', () => {
+      console.log('A user has disconnected')
+      currentUsers--
+      io.emit('user count', currentUsers)
+    })
   })
 }).catch((e) => {
   app.route('/').get((req, res) => {
     res.render('index', { title: e, message: 'Unable to connect to database' })
   })
 })
+
+function onAuthorizeSuccess(data, accept) {
+  console.log('successful connection to socket.io');
+
+  accept(null, true);
+}
+
+function onAuthorizeFail(data, message, error, accept) {
+  if (error) throw new Error(message);
+  console.log('failed connection to socket.io:', message);
+  accept(null, false);
+}
 
 //
 
