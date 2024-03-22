@@ -66,12 +66,27 @@ myDB(async client => {
   io.on('connection', socket => { // sockets are clients
     console.log('A user has connected')
     currentUsers++
-    io.emit('user count', currentUsers) // emit an event named param1, with data param2
+    io.emit('user', {
+      name: socket.request.user.username,
+      currentUsers,
+      connect: true
+    }) // emit an event named param1, with data param2
+
+    socket.on('chat message', message => {
+      io.emit('chat message', {
+        name: socket.request.user.username,
+        message
+      })
+    })
 
     socket.on('disconnect', () => {
       console.log('A user has disconnected')
       currentUsers--
-      io.emit('user count', currentUsers)
+      io.emit('user', {
+        name: socket.request.user.username,
+        currentUsers,
+        connect: false
+      })
     })
   })
 }).catch((e) => {
